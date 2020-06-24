@@ -1,40 +1,37 @@
 #!/bin/bash
 
 # This is an auxiliary script that is used after chroot the base system
+say(){ echo -e "\n\e[1m\e[33m[ $@ ]\e[m"; }
 
-# Set locales
-echo "[ Setting locales ]"
+say "Setting locales"
 sed -i.bak -e 's/#es_ES.UTF-8/es_ES.UTF-8/; s/en_US.UTF-8/#en_US.UTF-8/' /etc/locale.gen
 locale-gen
 echo LANG=es_ES.UTF-8 > /etc/locale.conf
 export LANG=es_ES.UTF-8
 
-# Set the time zone
-echo "[ Setting the time zone ]"
+say "Setting the time zone"
 ln -s /usr/share/zoneinfo/Europe/Madrid /etc/localtime
 
-# Set UTC
-echo "[ Installing ntp and setting UTC ]"
+say "Installing ntp and setting UTC"
 pacman -S ntp --noconfirm && ntpd -qg
 hwclock --systohc --utc
 
-# Set hostname
 read -p "Type the hostname: " HOSTNAME
 echo $HOSTNAME > /etc/hostname
 
-echo "[ Installing WiFi support ]"
+say "Installing WiFi support"
 pacman -S wpa_supplicant dialog --noconfirm
 
-# Create an initial ramdisk environment
+say "Creating an initial ramdisk environment"
 mkinitcpio -p linux
 
 # Set the root password
-echo "[ Set root password ]"
+say "Set root password"
 passwd
 
 # Install GRUB
 if [[ -d /boot/efi ]]; then
-  echo "[ Installing bootloader ]"
+  say "Installing bootloader"
   pacman -S grub efibootmgr os-prober --noconfirm
 
   grub-install --target=x86_64-efi
@@ -42,7 +39,7 @@ if [[ -d /boot/efi ]]; then
 fi
 
 # Install more packages
-echo "[ Installing main packages ]"
+say "Installing main packages"
 pacman -S gnome firefox tilix arandr audacity clementine code cups   \
   emacs firefox fish fwupd gdm gnome-tweaks pandoc pandoc-citeproc   \
   hledger hledger-web hplip imagemagick jupyter jupyterlab kdenlive  \
@@ -50,18 +47,35 @@ pacman -S gnome firefox tilix arandr audacity clementine code cups   \
   pavucontrol python-tensorflow-opt python-scikit-learn python-scipy \
   qemu r remmina ruby sane sof-firmware texlive-bibtexextra          \
   texlive-bin texlive-core texlive-fontsextra texlive-formatsextra   \
-  texlive-latexextra texlive-pictures texlive-publishers             \
-  texlive-science thunderbird wpa_supplicant youtube-dl              \
+  texlive-latexextra texlive-pictures texlive-publishers obs-studio  \
+  texlive-science thunderbird wpa_supplicant youtube-dl ntfs-3g      \
+  systemd-swap chrome-gnome-shell                                    \
   --noconfirm
 
-echo "[ Now installing AUR helper ]"
+say "Replacing GNOME Terminal by Tilix"
+pacman -Rc gnome-terminal --noconfirm
+ln -s /usr/bin/tilix /usr/bin/gnome-terminal
+
+say "Now installing AUR helper"
 cd /tmp
 git clone https://aur.archlinux.org/pikaur.git
 cd pikaur
 makepkg -fsri --noconfirm
 cd /
 
-echo "[ Enabling services ]"
+say "Installing AUR packages"
+
+pikaur -S gnome-shell-extension-blyr \
+  gnome-shell-extension-extended-gestures-git  \
+  freetype2-cleartype nord-tilix nordic-theme-git obs-xdg-portal-git \
+  system76-power gnome-shell-extension-dash-to-panel \
+  gnome-shell-extension-workspaces-to-dock \
+  --noconfirm --noedit --nodiff
+
+say "Enabling modules"
+echo "system76" > /etc/modules-load.d/system76.conf
+
+say "Enabling services"
 systemctl enable NetworkManager
 systemctl enable gdm
 systemctl enable org.cups.cupsd
@@ -69,7 +83,22 @@ systemctl enable org.cups.cupsd
 # Set ES to wireless region
 sed -i.bak -e 's/#WIRELESS_REGDOM="ES"/WIRELESS_REGDOM="ES"/' /etc/conf.d/wireless-regdom
 
-echo "[ Creating first user ]"
+
+say "Creating first user"
 sed -i.bak -e 's/# %wheel ALL=/%wheel ALL=/' /etc/sudoers
 read -p "Type the username: " USERNAME
 useradd -m -g users -G wheel $USERNAME
+
+say "Installing Code extensions"
+exts=("ACharLuk.fenix" "alexanderte.dainty-nord-vscode" "goessner.mdmath" "jebbs.markdown-extended")
+for ext in "${exts[@]}"; do
+  su $USERNAME -c "code --install-extension $ext"
+done
+
+say "Updating firmware"
+fwupdmgr enable-remote lvfs-testing --assume-yes
+fwupdmgr get-devices
+fwupdmgr refresh
+fwupdmgr get-updates
+fwupdmgr update --no-reboot-check
+fwupdmgr disable-remote lvfs-testing --assume-yes

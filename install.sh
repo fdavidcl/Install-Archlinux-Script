@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+say(){ echo -e "\n\e[1m\e[36m[ $@ ]\e[m"; }
+
 if [[ $# -ne 2 ]]; then
 cat <<EOF
 ========================================================
@@ -54,16 +56,11 @@ if [ "${RESPONSE,,}" == "n" ]; then
 fi
 
 # Set locale and generate it/them
-echo "[ Setting ES locale ]"
+say "Setting ES locale"
 sed -i.bak -e 's/#es_ES.UTF-8/es_ES.UTF-8/; s/en_US.UTF-8/#en_US.UTF-8/' /etc/locale.gen
 locale-gen
 export LANG=es_ES.UTF-8
 
-echo "[ Checking UEFI support ]"
-(ls /sys/firmware/efi/efivars > /dev/null) || (
-  echo "You're not running under UEFI. This script will abort."
-  exit 1
-)
 
 read -p "You have chosen to format $1 as root. THIS WILL ERASE YOUR DATA.\nContinue? (y/n) " RESPONSE
 
@@ -79,39 +76,46 @@ fi
 mkfs.btrfs $1
 
 # Mount the partitions
-echo "[ Mounting root partition ]"
+say "Mounting root partition"
 mount $1 /mnt
 # unset mountpoints[$ROOT]
 
-efi=$(lsblk -o NAME,PARTTYPENAME -l | grep "EFI System" | cut -d" " -f1)
+say "Checking UEFI support"
 installgrub=1
 
-read -p "/dev/$efi was detected as EFI System Partition. Mount in /boot/efi? (y/n)" RESPONSE
-
-while [ "${RESPONSE,,}" != "y" ] && [ "${RESPONSE,,}" != "n" ]; do
-  echo "Please answer y or n"
-  read -p "Continue? (y/n) " RESPONSE
-done
-
-if [ "${RESPONSE,,}" == "n" ]; then
-  echo "Bootloader will not be installed"
+(ls /sys/firmware/efi/efivars > /dev/null) || (
   installgrub=0
-fi
-
+  echo "UEFI not supported. This script will not install a bootloader."
+)
 if [[ $installgrub -eq 1 ]]; then
-  mount /dev/$efi /mnt/boot/efi
-fi
+  efi=$(lsblk -o NAME,PARTTYPENAME -l | grep "EFI System" | cut -d" " -f1)
 
+  read -p "/dev/$efi was detected as EFI System Partition. Mount in /boot/efi? (y/n)" RESPONSE
+
+  while [ "${RESPONSE,,}" != "y" ] && [ "${RESPONSE,,}" != "n" ]; do
+    echo "Please answer y or n"
+    read -p "Continue? (y/n) " RESPONSE
+  done
+
+  if [ "${RESPONSE,,}" == "n" ]; then
+    echo "Bootloader will not be installed"
+    installgrub=0
+  fi
+
+  if [[ $installgrub -eq 1 ]]; then
+    mount /dev/$efi /mnt/boot/efi
+  fi
+fi
 
 # Select a mirror and update pacman database
-echo "[ Selecting the OSL mirror ]"
+say "Selecting the OSL mirror"
 sed -i.bak '1iServer = http://osl.ugr.es/archlinux/$repo/os/$arch' /etc/pacman.d/mirrorlist
 
-echo "[ Updating pacman database ]"
+say "Updating pacman database"
 pacman -Syy
 
 # Install the base system
-echo "[ Installing your system ]"
+say "Installing your system"
 pacstrap -i /mnt base base-devel linux linux-firmware --noconfirm
 
 # Generate an fstab
