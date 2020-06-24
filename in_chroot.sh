@@ -18,6 +18,10 @@ hwclock --systohc --utc
 
 read -p "Type the hostname: " HOSTNAME
 echo $HOSTNAME > /etc/hostname
+echo "127.0.0.1 localhost
+::1 localhost
+127.0.1.1 $HOSTNAME.localdomain $HOSTNAME
+" >> /etc/hosts
 
 say "Installing WiFi support"
 pacman -S wpa_supplicant dialog --noconfirm
@@ -89,8 +93,12 @@ sed -i.bak -e 's/# %wheel ALL=/%wheel ALL=/' /etc/sudoers
 read -p "Type the username: " USERNAME
 useradd -m -g users -G wheel $USERNAME
 
+say "Setting your shell"
+chsh -s /usr/bin/fish fdavidcl
+su $USERNAME -c "curl -L https://get.oh-my.fish | fish; omf install pure"
+
 say "Installing Code extensions"
-exts=("ACharLuk.fenix" "alexanderte.dainty-nord-vscode" "goessner.mdmath" "jebbs.markdown-extended")
+exts=("ACharLuk.fenix" "alexanderte.dainty-nord-vscode" "goessner.mdmath" "jebbs.markdown-extended" "ms-python.python" "Ikuyadeu.r")
 for ext in "${exts[@]}"; do
   su $USERNAME -c "code --install-extension $ext"
 done
