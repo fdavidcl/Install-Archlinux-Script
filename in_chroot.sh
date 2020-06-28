@@ -110,3 +110,12 @@ fwupdmgr refresh
 fwupdmgr get-updates
 fwupdmgr update --no-reboot-check
 fwupdmgr disable-remote lvfs-testing --assume-yes
+
+say "Saving guides and stuff for later use"
+
+cat <<EOF
+Guides on how to optimize power efficiency on laptops:
+
+ - https://www.reddit.com/r/thinkpad/comments/alol03/tips_on_decreasing_power_consumption_under_linux/
+ - https://medium.com/@amanusk/an-extensive-guide-to-optimizing-a-linux-laptop-for-battery-life-and-performance-27a7d853856c
+EOF >> /home/$USERNAME/battery-guides.txt
